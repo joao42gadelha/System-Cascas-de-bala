@@ -3,6 +3,7 @@ package com.sistema.estoque.view;
 import com.sistema.estoque.model.MovimentacaoEstoque;
 import com.sistema.estoque.model.Produto;
 import com.sistema.estoque.repository.ProdutoRepository;
+import com.sistema.estoque.service.ImpressoraCupom;
 import com.sistema.estoque.service.MovimentacaoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,8 @@ public class TelaCaixa extends JFrame {
     private final MovimentacaoService movimentacaoService;
     private final TelaCadastro telaCadastro;
     private final TelaConfiguracaoLeitor telaConfiguracaoLeitor;
+    private final ImpressoraCupom impressoraCupom;
+    private final TelaListaProdutos telaListaProdutos;
 
     private JTextField campoCodigoBarras;
     private JTable tabelaProdutos;
@@ -28,6 +31,8 @@ public class TelaCaixa extends JFrame {
     private JButton btnPagamento;
     private JButton btnAbrirCadastro;
     private JButton btnConfigurarLeitor;
+    private JButton btnVerProdutos;
+    private JCheckBox chkImprimirCupom; 
 
     private List<Produto> carrinho = new ArrayList<>();
     private double valorTotal = 0.0;
@@ -36,16 +41,20 @@ public class TelaCaixa extends JFrame {
     public TelaCaixa(ProdutoRepository produtoRepository, 
                      MovimentacaoService movimentacaoService, 
                      TelaCadastro telaCadastro, 
-                     TelaConfiguracaoLeitor telaConfiguracaoLeitor) {
+                     TelaConfiguracaoLeitor telaConfiguracaoLeitor,
+                     ImpressoraCupom impressoraCupom,
+                     TelaListaProdutos telaListaProdutos) { 
         
         this.produtoRepository = produtoRepository;
         this.movimentacaoService = movimentacaoService;
         this.telaCadastro = telaCadastro;
         this.telaConfiguracaoLeitor = telaConfiguracaoLeitor;
+        this.impressoraCupom = impressoraCupom; 
+        this.telaListaProdutos = telaListaProdutos;
 
         // 1. Configurações da Janela
         setTitle("PDV - Cascas de bala e CIA");
-        setSize(900, 650);
+        setSize(950, 650);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout(10, 10));
@@ -67,8 +76,11 @@ public class TelaCaixa extends JFrame {
         painelLeitor.add(campoCodigoBarras);
 
         JPanel painelBotoesConfig = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        btnAbrirCadastro = new JButton("Inventário");
+        btnVerProdutos = new JButton("Ver Produtos");
+        btnAbrirCadastro = new JButton("Cadastrar");
         btnConfigurarLeitor = new JButton("Testar Leitor");
+        
+        painelBotoesConfig.add(btnVerProdutos);
         painelBotoesConfig.add(btnAbrirCadastro);
         painelBotoesConfig.add(btnConfigurarLeitor);
 
@@ -85,7 +97,7 @@ public class TelaCaixa extends JFrame {
         tabelaProdutos.setRowHeight(25);
         add(new JScrollPane(tabelaProdutos), BorderLayout.CENTER);
 
-        // 4. Painel Inferior
+        // 4. Painel Inferior 
         JPanel painelBaixo = new JPanel(new BorderLayout(10, 10));
         painelBaixo.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         painelBaixo.setBackground(new Color(45, 45, 45));
@@ -95,11 +107,23 @@ public class TelaCaixa extends JFrame {
         labelTotal.setForeground(Color.GREEN);
         painelBaixo.add(labelTotal, BorderLayout.WEST);
 
+        JPanel painelAcoesPagamento = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        painelAcoesPagamento.setBackground(new Color(45, 45, 45));
+
+        chkImprimirCupom = new JCheckBox("Imprimir Cupom", true);
+        chkImprimirCupom.setFont(new Font("Arial", Font.PLAIN, 16));
+        chkImprimirCupom.setForeground(Color.WHITE);
+        chkImprimirCupom.setBackground(new Color(45, 45, 45));
+
         btnPagamento = new JButton("FINALIZAR COMPRA");
         btnPagamento.setFont(new Font("Arial", Font.BOLD, 20));
         btnPagamento.setBackground(new Color(0, 153, 51));
         btnPagamento.setForeground(Color.WHITE);
-        painelBaixo.add(btnPagamento, BorderLayout.EAST);
+
+        painelAcoesPagamento.add(chkImprimirCupom);
+        painelAcoesPagamento.add(btnPagamento);
+
+        painelBaixo.add(painelAcoesPagamento, BorderLayout.EAST);
 
         add(painelBaixo, BorderLayout.SOUTH);
 
@@ -108,6 +132,12 @@ public class TelaCaixa extends JFrame {
         btnPagamento.addActionListener(e -> finalizarVenda());
         btnAbrirCadastro.addActionListener(e -> telaCadastro.setVisible(true));
         btnConfigurarLeitor.addActionListener(e -> telaConfiguracaoLeitor.setVisible(true));
+        
+        // Ação do novo botão de ver produtos
+        btnVerProdutos.addActionListener(e -> {
+            telaListaProdutos.atualizarTabela(); // Carrega os dados atualizados do banco
+            telaListaProdutos.setVisible(true);  // Abre a janela
+        });
     }
 
     private void adicionarAoCarrinho() {
@@ -138,7 +168,16 @@ public class TelaCaixa extends JFrame {
                 m.setTipoMovimentacao("SAIDA");
                 movimentacaoService.registrarMovimentacao(m);
             });
-            JOptionPane.showMessageDialog(this, "Venda finalizada!");
+            
+            String mensagemFinal = "Venda finalizada!";
+
+            if (chkImprimirCupom.isSelected()) {
+                impressoraCupom.imprimirCupom(carrinho, valorTotal, f);
+                mensagemFinal += " Cupom gerado no console.";
+            }
+
+            JOptionPane.showMessageDialog(this, mensagemFinal);
+            
             carrinho.clear();
             modeloTabela.setRowCount(0);
             valorTotal = 0.0;
